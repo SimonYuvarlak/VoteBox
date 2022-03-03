@@ -6,7 +6,7 @@ use cw2::set_contract_version;
 use cw_utils::Scheduled;
 
 use crate::error::ContractError;
-use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VoteResponse};
 use crate::msg::ExecuteMsg::vote_reset;
 use crate::state::{State, STATE, Vote};
 
@@ -45,7 +45,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::vote_yes => vote_yes(deps, env),
         ExecuteMsg::vote_no => vote_no(deps, env),
-        ExecuteMsg::vote_reset => reset(deps, env),
+        ExecuteMsg::vote_reset => reset(deps, env, info),
     }
 }
 
@@ -77,12 +77,14 @@ pub fn vote_no(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     Ok(Response::new().add_attribute("method", "vote_no").add_attribute("no_count", param))
 }
 
-pub fn reset(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+pub fn reset(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let mut param1: Uint128 = Uint128::zero();
     let mut param2: Uint128 = Uint128::zero();
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         if state.deadline.is_triggered(&env.block) {
             return Err(ContractError::Expired {});
+        } else if "admin" != info.sender {
+            return Err(ContractError::Unauthorized {});
         }
         state.vote.yes_count = Uint128::zero();
         state.vote.no_count = Uint128::zero();
@@ -100,11 +102,17 @@ pub fn reset(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    // match msg {
-    //
-    // }
-    unimplemented!()
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<VoteResponse> {
+    match msg {
+        QueryMsg::query_vote => query_vote(deps),
+    }
+}
+
+pub fn query_vote(deps: Deps) -> StdResult<VoteResponse> {
+    let vote_item = STATE.load(deps.storage)?;
+    Ok(VoteResponse {
+        vote: vote_item
+    })
 }
 
 #[cfg(test)]
@@ -119,17 +127,11 @@ mod tests {
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
         let msg = InstantiateMsg { deadline: Scheduled::AtHeight(123) };
         let info = mock_info("admin", &coins(1000, "earth"));
-        // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         let value = res.attributes;
         assert_eq!("0", value[1].value);
-    //
-    //     // it worked, let's query the state
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(17, value.count);
     }
-    //
+
     #[test]
     fn increment() {
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
@@ -141,17 +143,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let value = res.attributes;
-        assert_eq!("2", value[1].value);
-    //
-    //     // beneficiary can release it
-    //     let info = mock_info("anyone", &coins(2, "token"));
-    //     let msg = ExecuteMsg::Increment {};
-    //     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //
-    //     // should increase counter by 1
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(18, value.count);
+        assert_eq!("2", value[1].value, "initial value is {}", value[1].value);
     }
 
     #[test]
@@ -182,32 +174,14 @@ mod tests {
         assert_eq!("0", value[2].value);
     }
 
-    //
-    // #[test]
-    // fn reset() {
-    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-    //
-    //     let msg = InstantiateMsg { count: 17 };
-    //     let info = mock_info("creator", &coins(2, "token"));
-    //     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //
-    //     // beneficiary can release it
-    //     let unauth_info = mock_info("anyone", &coins(2, "token"));
-    //     let msg = ExecuteMsg::Reset { count: 5 };
-    //     let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-    //     match res {
-    //         Err(ContractError::Unauthorized {}) => {}
-    //         _ => panic!("Must return unauthorized error"),
-    //     }
-    //
-    //     // only the original creator can reset the counter
-    //     let auth_info = mock_info("creator", &coins(2, "token"));
-    //     let msg = ExecuteMsg::Reset { count: 5 };
-    //     let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-    //
-    //     // should now be 5
-    //     let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-    //     let value: CountResponse = from_binary(&res).unwrap();
-    //     assert_eq!(5, value.count);
-    // }
+    #[test]
+    fn query_test() {
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
+        let msg = QueryMsg::query_vote;
+        let intinfo = mock_info("admin", &coins(1000, "earth"));
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
+        let res = query(deps.as_ref(), mock_env(), msg.clone()).unwrap();
+    }
 }
