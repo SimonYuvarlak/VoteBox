@@ -1,18 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
-    Uint64,
+    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
+    Uint128, Uint64,
 };
 use cw2::set_contract_version;
+use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
 use std::os::macos::raw::stat;
 
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg::vote_reset;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VoteResponse};
-use crate::state::{State, Vote, STATE, VOTE_BOX_LIST, VOTE_BOX_SEQ};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VoteBoxListResponse, VoteResponse};
+use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
@@ -134,18 +135,46 @@ pub fn reset(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<VoteResponse> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::query_vote => query_vote(deps),
+        QueryMsg::query_vote { id } => to_binary(&query_vote(deps, id)?),
+        QueryMsg::get_list { start_after, limit } => {
+            to_binary(&query_votelist(deps, start_after, limit)?)
+        }
     }
 }
 
-pub fn query_vote(deps: Deps) -> StdResult<VoteResponse> {
-    let vote_item = STATE.load(deps.storage)?;
-    // Ok(VoteResponse {
-    //     vote: vote_item
-    // })
-    unimplemented!()
+pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
+    let vote = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+    let res = VoteResponse {
+        id: vote.id,
+        yes_count: vote.yes_count,
+        no_count: vote.no_count,
+        deadline: vote.deadline,
+        owner: vote.owner,
+    };
+    Ok(res)
+}
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
+
+pub fn query_votelist(
+    deps: Deps,
+    start_after: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<VoteBoxListResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = start_after.map(Bound::exclusive);
+    let votes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .collect();
+
+    let res = VoteBoxListResponse {
+        voteList: votes?.into_iter().map(|l| l.1.into()).collect(),
+    };
+    Ok(res)
 }
 
 #[cfg(test)]
@@ -208,6 +237,10 @@ mod tests {
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let value = res.attributes;
         assert_eq!("1", value[2].value, "Value is {}", value[1].value);
+        /// Query Vote
+        let msgQuery = QueryMsg::query_vote { id: Uint64::new(1) };
+        let res = query(deps.as_ref(), mock_env(), msgQuery.clone()).unwrap();
+
         ///Reset
         let msg = ExecuteMsg::vote_reset { id: Uint64::new(1) };
         let info = mock_info("simon", &coins(1000, "earth"));
@@ -217,15 +250,4 @@ mod tests {
         assert_eq!("0", value[2].value, "Value is {}", value[2].value);
         assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
     }
-    //
-    // #[test]
-    // fn query_test() {
-    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-    //     let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
-    //     let msg = QueryMsg::query_vote;
-    //     let intinfo = mock_info("admin", &coins(1000, "earth"));
-    //     let info = mock_info("admin", &coins(1000, "earth"));
-    //     let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
-    //     let res = query(deps.as_ref(), mock_env(), msg.clone()).unwrap();
-    // }
 }
