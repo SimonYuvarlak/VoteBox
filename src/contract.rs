@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
-use std::os::macos::raw::stat;
+//use std::os::macos::raw::stat;
 
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg::vote_reset;
@@ -184,6 +184,7 @@ mod tests {
     use cosmwasm_std::{coins, from_binary};
     use cw_utils::Scheduled;
 
+    /*
     #[test]
     fn proper_initialization() {
         ///Initialize
@@ -250,4 +251,6 @@ mod tests {
         assert_eq!("0", value[2].value, "Value is {}", value[2].value);
         assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
     }
+
+     */
 }
