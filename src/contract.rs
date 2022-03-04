@@ -122,7 +122,8 @@ pub fn reset(deps: DepsMut, env: Env, info: MessageInfo, id: Uint64) -> Result<R
     Ok(Response::new()
         .add_attribute("method", "vote_reset")
         .add_attribute("yes_count", param1)
-        .add_attribute("no_count", param2))
+        .add_attribute("no_count", param2)
+        .add_attribute("caller", info.sender.to_string()))
 }
 
 
@@ -148,71 +149,104 @@ mod tests {
     use cosmwasm_std::{coins, from_binary};
     use cw_utils::Scheduled;
 
-    // #[test]
-    // fn proper_initialization() {
-    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-    //     let msg = InstantiateMsg { deadline: Scheduled::AtHeight(123) };
-    //     let info = mock_info("admin", &coins(1000, "earth"));
-    //     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //     let value = res.attributes;
-    //     assert_eq!("0", value[1].value);
-    // }
-    //
-    // #[test]
-    // fn create() {
-    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-    //     let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
-    //     let msg = ExecuteMsg::create_vote_box {deadline: intmsg.deadline, owner: "simon".to_string()};
-    //     let intinfo = mock_info("admin", &coins(1000, "earth"));
-    //     let info = mock_info("admin", &coins(1000, "earth"));
-    //     let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
-    //     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-    //     let value = res.attributes;
-    //     assert_eq!("1", value[1].value);
-    //     assert_eq!("simon", value[2].value);
-    // }
+    #[test]
+    fn proper_initialization() {
+        ///Initialize
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let msg = InstantiateMsg { deadline: Scheduled::AtHeight(123) };
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let value = res.attributes;
+        assert_eq!("0", value[1].value);
+    }
 
     #[test]
-    fn increment() {
+    fn create() {
+        /// Initialize and create
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
         let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
-        let msg = ExecuteMsg::vote_yes {id: Uint64::new(1)};
+        let msg = ExecuteMsg::create_vote_box {deadline: intmsg.deadline, owner: "simon".to_string()};
         let intinfo = mock_info("admin", &coins(1000, "earth"));
         let info = mock_info("admin", &coins(1000, "earth"));
         let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap_err();
-        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        // let value = res.attributes;
-        // assert_eq!(res, ContractError::Expired {});
-        // assert_eq!(res, ContractError::Unauthorized {});
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value);
+        assert_eq!("simon", value[2].value);
+    }
+
+    #[test]
+    fn increment() {
+        ///Initialize, create and increment
+        ///Initialize and create
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
+        let msg = ExecuteMsg::create_vote_box {deadline: intmsg.deadline, owner: "simon".to_string()};
+        let intinfo = mock_info("admin", &coins(1000, "earth"));
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value);
+        assert_eq!("simon", value[2].value);
+        ///Increment
+        let msg = ExecuteMsg::vote_yes {id: Uint64::new(1)};
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value, "Value is {}", value[1].value);
     }
 
     #[test]
     fn decrement() {
+        ///Initialize, create and decrement
+        ///Initialize and create
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
         let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
-        let msg = ExecuteMsg::vote_no {id: Uint64::new(1)};
+        let msg = ExecuteMsg::create_vote_box {deadline: intmsg.deadline, owner: "simon".to_string()};
         let intinfo = mock_info("admin", &coins(1000, "earth"));
         let info = mock_info("admin", &coins(1000, "earth"));
         let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap_err();
-        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        // let value = res.attributes;
-        // assert_eq!("0", value[1].value, "initial value is {}", value[1].value);
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value);
+        assert_eq!("simon", value[2].value);
+        ///Decrement
+        let msg = ExecuteMsg::vote_no {id: Uint64::new(1)};
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value, "Value is {}", value[1].value);
     }
     //
     #[test]
     fn reset() {
+        ///Initialize create, increment and reset
+        /// Initialize and create
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
         let intmsg = InstantiateMsg { deadline: Scheduled::AtHeight(123111) };
-        let msg = ExecuteMsg::vote_reset {id: Uint64::new(1)};
+        let msg = ExecuteMsg::create_vote_box {deadline: intmsg.deadline, owner: "simon".to_string()};
         let intinfo = mock_info("admin", &coins(1000, "earth"));
         let info = mock_info("admin", &coins(1000, "earth"));
         let intres = instantiate(deps.as_mut(), mock_env(), intinfo, intmsg).unwrap();
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap_err();
-        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        // let value = res.attributes;
-        // assert_eq!("0", value[1].value, "initial value is {}", value[1].value);
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value);
+        assert_eq!("simon", value[2].value);
+        ///Increment
+        let msg = ExecuteMsg::vote_yes {id: Uint64::new(1)};
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("1", value[1].value, "Value is {}", value[1].value);
+        ///Reset
+        let msg = ExecuteMsg::vote_reset {id: Uint64::new(1)};
+        let info = mock_info("simon", &coins(1000, "earth"));
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+        assert_eq!("0", value[1].value, "Value is {}", value[1].value);
+        assert_eq!("0", value[2].value, "Value is {}", value[2].value);
+        assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
     }
     //
     // #[test]
