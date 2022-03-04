@@ -255,7 +255,7 @@ mod tests {
         let info = mock_info("admin", &coins(1000, "earth"));
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let value = res.attributes;
-        assert_eq!("1", value[1].value, "Value is {}", value[1].value);
+        assert_eq!("1", value[2].value, "Value is {}", value[1].value);
     }
     //
     #[test]
