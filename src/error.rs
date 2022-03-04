@@ -12,15 +12,9 @@ pub enum ContractError {
     #[error("Vote pool has ended")]
     Expired {},
 
-    #[error("overflow")]
-    Overflow {error: OverflowError},
+    #[error("{0}")]
+    Overflow(#[from] OverflowError),
 
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-}
-
-impl From<OverflowError> for ContractError {
-    fn from(error: OverflowError) -> Self {
-        ContractError::Overflow {error}
-    }
 }
