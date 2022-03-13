@@ -12,7 +12,7 @@ use std::ops::Add;
 
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg::vote_reset;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VoteBoxListResponse, VoteResponse};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse};
 use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 
 // version info for migration info
@@ -140,7 +140,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::query_vote { id } => to_binary(&query_vote(deps, id)?),
         QueryMsg::get_list { start_after, limit } => {
             to_binary(&query_votelist(deps, start_after, limit)?)
-        }
+        },
+        QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?)
     }
 }
 
@@ -177,6 +178,10 @@ pub fn query_votelist(
     Ok(res)
 }
 
+pub fn query_votebox_count(deps: Deps)-> StdResult<VBCountResponse>{
+  let res = VBCountResponse{count: VOTE_BOX_SEQ.load(deps.storage)?};
+  Ok(res)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
