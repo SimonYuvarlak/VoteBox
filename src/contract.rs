@@ -194,7 +194,7 @@ mod tests {
     use cw_utils::Scheduled;
 
 
-    #[test]
+    //#[test]
     // fn proper_initialization() {
     //     ///Initialize
     //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
@@ -207,7 +207,7 @@ mod tests {
     //     assert_eq!("0", value[1].value);
     // }
 
-    #[test]
+    //#[test]
     // fn execution_test() {
         // ///Initialize create, increment and reset
         // ///Initialize

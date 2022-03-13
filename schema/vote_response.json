@@ -8,6 +8,7 @@
     "id",
     "no_count",
     "owner",
+    "topic",
     "yes_count"
   ],
   "properties": {
@@ -21,6 +22,9 @@
       "$ref": "#/definitions/Uint128"
     },
     "owner": {
+      "type": "string"
+    },
+    "topic": {
       "type": "string"
     },
     "yes_count": {

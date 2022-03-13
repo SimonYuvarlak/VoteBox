@@ -12,13 +12,17 @@
           "type": "object",
           "required": [
             "deadline",
-            "owner"
+            "owner",
+            "topic"
           ],
           "properties": {
             "deadline": {
               "$ref": "#/definitions/Scheduled"
             },
             "owner": {
+              "type": "string"
+            },
+            "topic": {
               "type": "string"
             }
           }
