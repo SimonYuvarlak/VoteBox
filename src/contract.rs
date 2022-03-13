@@ -43,8 +43,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::create_vote_box { deadline, owner } => {
-            create_vote_box(deps, env, info, deadline, owner)
+        ExecuteMsg::create_vote_box { deadline, owner , topic} => {
+            create_vote_box(deps, env, info, deadline, owner, topic)
         }
         ExecuteMsg::vote { id, vote } => execute_vote(deps, env, id, vote),
         ExecuteMsg::vote_reset { id } => reset(deps, env, info, id),
@@ -77,10 +77,11 @@ pub fn execute_vote(
 
 pub fn create_vote_box(
     deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
+    _env: Env,
+    _info: MessageInfo,
     deadline: Scheduled,
     owner: String,
+    topic: String,
 ) -> Result<Response, ContractError> {
     let check = deps.api.addr_validate(&owner)?;
 
@@ -92,13 +93,15 @@ pub fn create_vote_box(
         no_count: Uint128::zero(),
         deadline: deadline.clone(),
         owner: owner.clone(),
+        topic: topic.clone(),
     };
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &new_vote_box)?;
     Ok(Response::new()
         .add_attribute("create_vote", "success")
         .add_attribute("print_id", id)
-        .add_attribute("owner", owner.clone()))
+        .add_attribute("owner", owner.clone())
+        .add_attribute("topic", topic.clone()))
 }
 
 pub fn reset(
@@ -152,6 +155,7 @@ pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
         no_count: vote.no_count,
         deadline: vote.deadline,
         owner: vote.owner,
+        topic: vote.topic,
     };
     Ok(res)
 }
@@ -184,73 +188,73 @@ mod tests {
     use cosmwasm_std::{coins, from_binary};
     use cw_utils::Scheduled;
 
-    /*
+
     #[test]
-    fn proper_initialization() {
-        ///Initialize
-        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-        let msg = InstantiateMsg {
-            deadline: Scheduled::AtHeight(123),
-        };
-        let info = mock_info("admin", &coins(1000, "earth"));
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        let value = res.attributes;
-        assert_eq!("0", value[1].value);
-    }
+    // fn proper_initialization() {
+    //     ///Initialize
+    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+    //     let msg = InstantiateMsg {
+    //         deadline: Scheduled::AtHeight(123),
+    //     };
+    //     let info = mock_info("admin", &coins(1000, "earth"));
+    //     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    //     let value = res.attributes;
+    //     assert_eq!("0", value[1].value);
+    // }
 
     #[test]
     fn execution_test() {
         ///Initialize create, increment and reset
         ///Initialize
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-        let msg = InstantiateMsg {
-            deadline: Scheduled::AtHeight(123111),
-        };
+        let msg = InstantiateMsg {};
         let info = mock_info("admin", &coins(1000, "earth"));
         let res = instantiate(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
         let value = res.attributes;
         assert_eq!("0", value[1].value);
         ///Create
         let msg = ExecuteMsg::create_vote_box {
-            deadline: msg.deadline,
+            deadline: Scheduled::AtHeight(1000000),
             owner: "simon".to_string(),
+            topic: "trial".to_string(),
         };
         let info = mock_info("admin", &coins(1000, "earth"));
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let value = res.attributes;
         assert_eq!("1", value[1].value);
         assert_eq!("simon", value[2].value);
-        ///Increment
-        let msg = ExecuteMsg::vote {
-            id: Uint64::new(1),
-            vote: true,
-        };
-        let info = mock_info("admin", &coins(1000, "earth"));
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        let value = res.attributes;
-        assert_eq!("1", value[1].value, "Value is {}", value[1].value);
-        ///Decrement
-        let msg = ExecuteMsg::vote {
-            id: Uint64::new(1),
-            vote: false,
-        };
-        let info = mock_info("admin", &coins(1000, "earth"));
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        let value = res.attributes;
-        assert_eq!("1", value[2].value, "Value is {}", value[1].value);
-        /// Query Vote
-        let msgQuery = QueryMsg::query_vote { id: Uint64::new(1) };
-        let res = query(deps.as_ref(), mock_env(), msgQuery.clone()).unwrap();
-
-        ///Reset
-        let msg = ExecuteMsg::vote_reset { id: Uint64::new(1) };
-        let info = mock_info("simon", &coins(1000, "earth"));
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        let value = res.attributes;
-        assert_eq!("0", value[1].value, "Value is {}", value[1].value);
-        assert_eq!("0", value[2].value, "Value is {}", value[2].value);
-        assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
+        assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
+        // ///Increment
+        // let msg = ExecuteMsg::vote {
+        //     id: Uint64::new(1),
+        //     vote: true,
+        // };
+        // let info = mock_info("admin", &coins(1000, "earth"));
+        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("1", value[1].value, "Value is {}", value[1].value);
+        // ///Decrement
+        // let msg = ExecuteMsg::vote {
+        //     id: Uint64::new(1),
+        //     vote: false,
+        // };
+        // let info = mock_info("admin", &coins(1000, "earth"));
+        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("1", value[2].value, "Value is {}", value[1].value);
+        // /// Query Vote
+        // let msgQuery = QueryMsg::query_vote { id: Uint64::new(1) };
+        // let res = query(deps.as_ref(), mock_env(), msgQuery.clone()).unwrap();
+        //
+        // ///Reset
+        // let msg = ExecuteMsg::vote_reset { id: Uint64::new(1) };
+        // let info = mock_info("simon", &coins(1000, "earth"));
+        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("0", value[1].value, "Value is {}", value[1].value);
+        // assert_eq!("0", value[2].value, "Value is {}", value[2].value);
+        // assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
     }
 
-     */
+
 }
