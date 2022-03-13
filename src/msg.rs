@@ -25,6 +25,7 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u32>,
     },
+    get_votebox_count{},
 }
 
 /// We define a custom struct for each query response
@@ -49,6 +50,12 @@ impl Into<VoteResponse> for Vote {
             topic: self.topic,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VBCountResponse {
+    pub count: Uint64,
+
 }
 
 // We define a custom struct for each query response
