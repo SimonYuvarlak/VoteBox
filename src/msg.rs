@@ -10,7 +10,7 @@ pub struct InstantiateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    create_vote_box { deadline: Scheduled, owner: String },
+    create_vote_box { deadline: Scheduled, owner: String, topic: String },
     vote { id: Uint64, vote: bool },
     vote_reset { id: Uint64 },
 }
@@ -35,6 +35,7 @@ pub struct VoteResponse {
     pub no_count: Uint128,
     pub deadline: Scheduled,
     pub owner: String,
+    pub topic: String,
 }
 
 impl Into<VoteResponse> for Vote {
@@ -45,6 +46,7 @@ impl Into<VoteResponse> for Vote {
             yes_count: self.yes_count,
             no_count: self.no_count,
             deadline: self.deadline,
+            topic: self.topic,
         }
     }
 }
