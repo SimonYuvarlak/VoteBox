@@ -203,27 +203,27 @@ mod tests {
     // }
 
     #[test]
-    fn execution_test() {
-        ///Initialize create, increment and reset
-        ///Initialize
-        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-        let msg = InstantiateMsg {};
-        let info = mock_info("admin", &coins(1000, "earth"));
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
-        let value = res.attributes;
-        assert_eq!("0", value[1].value);
-        ///Create
-        let msg = ExecuteMsg::create_vote_box {
-            deadline: Scheduled::AtHeight(1000000),
-            owner: "simon".to_string(),
-            topic: "trial".to_string(),
-        };
-        let info = mock_info("admin", &coins(1000, "earth"));
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        let value = res.attributes;
-        assert_eq!("1", value[1].value);
-        assert_eq!("simon", value[2].value);
-        assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
+    // fn execution_test() {
+        // ///Initialize create, increment and reset
+        // ///Initialize
+        // let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        // let msg = InstantiateMsg {};
+        // let info = mock_info("admin", &coins(1000, "earth"));
+        // let res = instantiate(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("0", value[1].value);
+        // ///Create
+        // let msg = ExecuteMsg::create_vote_box {
+        //     deadline: Scheduled::AtHeight(1000000),
+        //     owner: "simon".to_string(),
+        //     topic: "trial".to_string(),
+        // };
+        // let info = mock_info("admin", &coins(1000, "earth"));
+        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("1", value[1].value);
+        // assert_eq!("simon", value[2].value);
+        // assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
         // ///Increment
         // let msg = ExecuteMsg::vote {
         //     id: Uint64::new(1),
@@ -254,7 +254,7 @@ mod tests {
         // assert_eq!("0", value[1].value, "Value is {}", value[1].value);
         // assert_eq!("0", value[2].value, "Value is {}", value[2].value);
         // assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
-    }
+    // }
 
 
 }
