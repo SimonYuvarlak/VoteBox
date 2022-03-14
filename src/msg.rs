@@ -10,9 +10,21 @@ pub struct InstantiateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    create_vote_box { deadline: Scheduled, owner: String, topic: String },
-    vote { id: Uint64, vote: bool },
-    vote_reset { id: Uint64 },
+    create_vote_box {
+        deadline: Scheduled,
+        owner: String,
+        topic: String,
+    },
+    vote {
+        id: Uint64,
+        vote: bool,
+    },
+    vote_reset {
+        id: Uint64,
+    },
+    vote_remove {
+        id: Uint64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,7 +37,7 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u32>,
     },
-    get_votebox_count{},
+    get_votebox_count {},
 }
 
 /// We define a custom struct for each query response
@@ -55,7 +67,6 @@ impl Into<VoteResponse> for Vote {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VBCountResponse {
     pub count: Uint64,
-
 }
 
 // We define a custom struct for each query response

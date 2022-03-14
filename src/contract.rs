@@ -5,6 +5,7 @@ use cosmwasm_std::{
     Uint128, Uint64,
 };
 use cw2::set_contract_version;
+//use cw_multi_test::Contract;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
@@ -12,8 +13,10 @@ use std::ops::Add;
 
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg::vote_reset;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse};
-use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse,
+};
+use crate::state::{Vcd ote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
@@ -43,11 +46,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::create_vote_box { deadline, owner , topic} => {
-            create_vote_box(deps, env, info, deadline, owner, topic)
-        }
+        ExecuteMsg::create_vote_box {
+            deadline,
+            owner,
+            topic,
+        } => create_vote_box(deps, env, info, deadline, owner, topic),
         ExecuteMsg::vote { id, vote } => execute_vote(deps, env, id, vote),
         ExecuteMsg::vote_reset { id } => reset(deps, env, info, id),
+        ExecuteMsg::vote_remove { id } => remove_votebox(deps, env, info, id),
     }
 }
 
@@ -129,12 +135,33 @@ pub fn reset(
     param2 = vote_box.no_count;
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &vote_box);
-
     Ok(Response::new()
         .add_attribute("method", "vote_reset")
         .add_attribute("yes_count", param1)
         .add_attribute("no_count", param2)
         .add_attribute("caller", info.sender.to_string()))
+}
+
+pub fn remove_votebox(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    id: Uint64,
+) -> Result<Response, ContractError> {
+    let mut vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+    if info.sender != vote_box.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    if vote_box.deadline.is_triggered(&env.block) {
+        return Err(ContractError::Expired {});
+    }
+
+    VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
+    VOTE_BOX_LIST.remove(deps.storage, vote_box.id.u64());
+
+    Ok(Response::new()
+        .add_attribute("method: ", "votebox deleted")
+        .add_attribute("deleted id: ", id))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -143,8 +170,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::query_vote { id } => to_binary(&query_vote(deps, id)?),
         QueryMsg::get_list { start_after, limit } => {
             to_binary(&query_votelist(deps, start_after, limit)?)
-        },
-        QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?)
+        }
+        QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?),
     }
 }
 
@@ -182,33 +209,34 @@ pub fn query_votelist(
     Ok(res)
 }
 
-pub fn query_votebox_count(deps: Deps)-> StdResult<VBCountResponse>{
-  let res = VBCountResponse{count: VOTE_BOX_SEQ.load(deps.storage)?};
-  Ok(res)
+pub fn query_votebox_count(deps: Deps) -> StdResult<VBCountResponse> {
+    let res = VBCountResponse {
+        count: VOTE_BOX_SEQ.load(deps.storage)?,
+    };
+    Ok(res)
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary};
+    use cosmwasm_std::{coins, from_binary, QueryResponse};
     use cw_utils::Scheduled;
 
+    /*
+    #[test]
+    fn proper_initialization() {
+        ///Initialize
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let msg = InstantiateMsg {};
+        let info = mock_info("admin", &coins(1000, "earth"));
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let value = res.attributes;
+        assert_eq!("0", value[1].value);
+    }
+    */
 
-    //#[test]
-    // fn proper_initialization() {
-    //     ///Initialize
-    //     let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-    //     let msg = InstantiateMsg {
-    //         deadline: Scheduled::AtHeight(123),
-    //     };
-    //     let info = mock_info("admin", &coins(1000, "earth"));
-    //     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //     let value = res.attributes;
-    //     assert_eq!("0", value[1].value);
-    // }
-
-    //#[test]
-    // fn execution_test() {
+    #[test]
+    fn execution_test() {
         // ///Initialize create, increment and reset
         // ///Initialize
         // let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
@@ -259,7 +287,52 @@ mod tests {
         // assert_eq!("0", value[1].value, "Value is {}", value[1].value);
         // assert_eq!("0", value[2].value, "Value is {}", value[2].value);
         // assert_eq!("simon", value[3].value, "Value is {}", value[3].value);
-    // }
+        // }
+        // ///Create
+        // let msg = ExecuteMsg::create_vote_box {
+        //     deadline: Scheduled::AtHeight(1000000),
+        //     owner: "simon".to_string(),
+        //     topic: "trial".to_string(),
+        // };
+        // let info = mock_info("admin", &coins(1000, "earth"));
+        // let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        // let value = res.attributes;
+        // assert_eq!("1", value[1].value);
+        // assert_eq!("simon", value[2].value);
+        // assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
 
+        /*
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let info = mock_info("test", &coins(1000, "earth"));
 
+        ///Initialize - Create 2 and delete 1
+        let msgInit = InstantiateMsg {};
+        let resInit = instantiate(deps.as_mut(), mock_env(), info.clone(), msgInit).unwrap();
+        let value = resInit.attributes;
+        assert_eq!("0", value[1].value);
+
+        //Create 2 voteboxes
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(1000000000000),
+            owner: "test".to_string(),
+            topic: "test".to_string(),
+        };
+
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let res2 = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+
+        //Query VoteBoxes
+        let resQuery: VoteResponse = query_vote(deps.as_ref(), Uint64::new(1)).unwrap();
+        assert_eq!(resQuery.id, Uint64::new(1));
+        // Remove Votebox
+        let msgRemove = ExecuteMsg::vote_remove { id: Uint64::new(2) };
+        let resRemove =
+            remove_votebox(deps.as_mut(), mock_env(), info.clone(), Uint64::new(2)).unwrap();
+
+        let voteListSize = query_votebox_count(deps.as_ref()).unwrap();
+        assert_eq!(voteListSize.count, Uint64::new(1));
+
+         */
+    }
 }
