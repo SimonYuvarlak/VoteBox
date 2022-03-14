@@ -262,7 +262,7 @@ mod tests {
     }
     */
 
-    #[test]
+    /*#[test]
     fn vote_list_removal_test(){
         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
         let info = mock_info("test", &coins(1000, "earth"));
@@ -308,9 +308,9 @@ mod tests {
         //list all created voteboxes
         let res: VoteBoxListResponse = query_votelist(deps.as_ref(), None, None).unwrap();
         println!("Value is {:?}", res);
-    }
+    }*/
 
-    #[test]
+    /*#[test]
     fn query_openclosed_count_test(){
         let mut deps = mock_dependencies();
 
@@ -360,7 +360,7 @@ mod tests {
         let res: VBOCResponse = query_vb_open_closed(deps.as_ref(), env.clone()).unwrap();
         println!("All is {}, open {}, closed {}", (res.open + res.closed), res.open, res.closed);
 
-    }
+    }*/
 
     /*#[test]
     fn execution_test() {
