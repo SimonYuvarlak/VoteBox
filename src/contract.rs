@@ -14,9 +14,9 @@ use std::ops::Add;
 use crate::error::ContractError;
 use crate::msg::ExecuteMsg::vote_reset;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse,
+    ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse, VBOCResponse
 };
-use crate::state::{Vcd ote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
+use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
@@ -156,6 +156,7 @@ pub fn remove_votebox(
         return Err(ContractError::Expired {});
     }
 
+    // alttaki satır isleyince son id bir eksildigi icin ayni id ile tekrar votebox olusturmak deneniyo
     VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
     VOTE_BOX_LIST.remove(deps.storage, vote_box.id.u64());
 
@@ -215,10 +216,36 @@ pub fn query_votebox_count(deps: Deps) -> StdResult<VBCountResponse> {
     };
     Ok(res)
 }
+
+pub fn query_vb_open_closed(
+    deps: Deps,
+    env: Env,
+) -> StdResult<VBOCResponse> {
+    let votes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    let bisi: Vec<VoteResponse> = votes?.into_iter().map(|l| l.1.into()).collect();
+    let mut open = Uint64::zero();
+    let mut closed = Uint64::zero();
+
+    for i in bisi{
+        if i.deadline.is_triggered(&env.block){
+            closed += Uint64::new(1);
+        } else {
+            open += Uint64::new(1);
+        }
+    }
+    let res = VBOCResponse {
+        open,
+        closed,
+    };
+    Ok(res)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, QueryResponse};
     use cw_utils::Scheduled;
 
@@ -235,7 +262,107 @@ mod tests {
     }
     */
 
-    #[test]
+    /*#[test]
+    fn vote_list_removal_test(){
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let info = mock_info("test", &coins(1000, "earth"));
+
+        ///Initialize - Create 2 and delete 1
+        let msgInit = InstantiateMsg {};
+        let resInit = instantiate(deps.as_mut(), mock_env(), info.clone(), msgInit).unwrap();
+        let value = resInit.attributes;
+        assert_eq!("0", value[1].value);
+
+        //Create 2 voteboxes
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(1000000000000),
+            owner: "test".to_string(),
+            topic: "test".to_string(),
+        };
+
+        //create votebox id 1
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        //create votebox id 2
+        let res2 = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        //create votebox id 3
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+
+        //Query VoteBoxes
+        let resQuery: VoteResponse = query_vote(deps.as_ref(), Uint64::new(1)).unwrap();
+        assert_eq!(resQuery.id, Uint64::new(1));
+        // Remove Votebox id 2
+        let msgRemove = ExecuteMsg::vote_remove { id: Uint64::new(2) };
+        let resRemove =
+            remove_votebox(deps.as_mut(), mock_env(), info.clone(), Uint64::new(2)).unwrap();
+
+        /*let voteListSize = query_votebox_count(deps.as_ref()).unwrap();
+        assert_eq!(voteListSize.count, Uint64::new(1));*/
+
+        //try create votebox id 4
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+
+        //try create votebox id 5
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+
+        //list all created voteboxes
+        let res: VoteBoxListResponse = query_votelist(deps.as_ref(), None, None).unwrap();
+        println!("Value is {:?}", res);
+    }*/
+
+    /*#[test]
+    fn query_openclosed_count_test(){
+        let mut deps = mock_dependencies();
+
+        let msg = InstantiateMsg{};
+        let info = mock_info("creator", &[]);
+        let mut env = mock_env();
+        env.block.height = 1;
+        //instantiate votebox contract
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string()
+        };
+        // create votebox id 1 height 5
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // create votebox id 2 height 5
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(6),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string()
+        };
+        // create votebox id 3 height 6
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(3),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string()
+        };
+        // create votebox id 4 height 3
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // create votebox id 5 height 3
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // set block height to 4
+        env.block.height = 4;
+
+        let res: VBCountResponse = query_votebox_count(deps.as_ref()).unwrap();
+        println!("Value is {}", res.count);
+
+        let res: VoteBoxListResponse = query_votelist(deps.as_ref(), None, None).unwrap();
+        println!("Value is {:?}", res);
+
+        let res: VBOCResponse = query_vb_open_closed(deps.as_ref(), env.clone()).unwrap();
+        println!("All is {}, open {}, closed {}", (res.open + res.closed), res.open, res.closed);
+
+    }*/
+
+    /*#[test]
     fn execution_test() {
         // ///Initialize create, increment and reset
         // ///Initialize
@@ -301,38 +428,5 @@ mod tests {
         // assert_eq!("simon", value[2].value);
         // assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
 
-        /*
-        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-        let info = mock_info("test", &coins(1000, "earth"));
-
-        ///Initialize - Create 2 and delete 1
-        let msgInit = InstantiateMsg {};
-        let resInit = instantiate(deps.as_mut(), mock_env(), info.clone(), msgInit).unwrap();
-        let value = resInit.attributes;
-        assert_eq!("0", value[1].value);
-
-        //Create 2 voteboxes
-
-        let msg = ExecuteMsg::create_vote_box {
-            deadline: Scheduled::AtHeight(1000000000000),
-            owner: "test".to_string(),
-            topic: "test".to_string(),
-        };
-
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        let res2 = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-
-        //Query VoteBoxes
-        let resQuery: VoteResponse = query_vote(deps.as_ref(), Uint64::new(1)).unwrap();
-        assert_eq!(resQuery.id, Uint64::new(1));
-        // Remove Votebox
-        let msgRemove = ExecuteMsg::vote_remove { id: Uint64::new(2) };
-        let resRemove =
-            remove_votebox(deps.as_mut(), mock_env(), info.clone(), Uint64::new(2)).unwrap();
-
-        let voteListSize = query_votebox_count(deps.as_ref()).unwrap();
-        assert_eq!(voteListSize.count, Uint64::new(1));
-
-         */
-    }
+    }*/
 }
