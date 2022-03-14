@@ -74,3 +74,9 @@ pub struct VBCountResponse {
 pub struct VoteBoxListResponse {
     pub voteList: Vec<VoteResponse>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VBOCResponse {
+    pub open: Uint64,
+    pub closed: Uint64,
+}
