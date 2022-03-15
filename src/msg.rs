@@ -38,6 +38,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     get_votebox_count {},
+    get_vbop_count {},
 }
 
 /// We define a custom struct for each query response
