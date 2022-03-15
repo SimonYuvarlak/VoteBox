@@ -157,7 +157,7 @@ pub fn remove_votebox(
     }
 
     // alttaki satır isleyince son id bir eksildigi icin ayni id ile tekrar votebox olusturmak deneniyo
-    VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
+    //VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
     VOTE_BOX_LIST.remove(deps.storage, vote_box.id.u64());
 
     Ok(Response::new()
@@ -173,6 +173,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_votelist(deps, start_after, limit)?)
         }
         QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?),
+        QueryMsg::get_vbop_count {} => to_binary(&query_votebox_count(deps)?),
     }
 }
 
@@ -244,6 +245,7 @@ pub fn query_vb_open_closed(
 }
 #[cfg(test)]
 mod tests {
+    use std::u64;
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, QueryResponse};
@@ -308,8 +310,15 @@ mod tests {
         //list all created voteboxes
         let res: VoteBoxListResponse = query_votelist(deps.as_ref(), None, None).unwrap();
         println!("Value is {:?}", res);
-    }*/
 
+        //try list votebox id 2
+        /*let resQuery: VoteResponse = query_vote(deps.as_ref(), Uint64::new(2)).unwrap();
+        println!("Value is {:?}", res);*/
+
+        /*let vote = VOTE_BOX_LIST.load(deps.as_ref().storage, 2u64).unwrap();
+        println!("Value is {:?}", vote);*/
+
+    }*/
     /*#[test]
     fn query_openclosed_count_test(){
         let mut deps = mock_dependencies();
