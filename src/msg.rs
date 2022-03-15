@@ -39,6 +39,9 @@ pub enum QueryMsg {
     },
     get_votebox_count {},
     get_vbop_count {},
+    get_voteboxes_by_owner {
+        owner: String,
+    },
 }
 
 /// We define a custom struct for each query response
