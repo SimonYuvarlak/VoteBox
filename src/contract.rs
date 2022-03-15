@@ -6,7 +6,10 @@ use crate::msg::{
 use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, Coin, CosmosMsg, BankMsg};
+use cosmwasm_std::{
+    to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdError, StdResult, Uint128, Uint64,
+};
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
@@ -199,10 +202,9 @@ pub fn execute_claim(
     Ok(res)
 }
 
-pub fn calc_amount(votebox: Vote) -> Uint128{
+pub fn calc_amount(votebox: Vote) -> Uint128 {
     return votebox.total_amount / votebox.voter_count;
 }
-
 
 #[allow(unused_must_use)]
 pub fn reset(
@@ -360,6 +362,7 @@ mod tests {
     use schemars::schema::InstanceType::String;
     use serde::__private::de::IdentifierDeserializer;
 
+     */
 
     /*
     #[test]

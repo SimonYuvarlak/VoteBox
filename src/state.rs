@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Uint128, Uint64};
+use cosmwasm_std::{Addr, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use cw_utils::Scheduled;
 
