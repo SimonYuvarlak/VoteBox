@@ -18,7 +18,7 @@ pub enum ExecuteMsg {
     },
     vote {
         id: Uint64,
-        vote: i32,
+        vote_type: i32,
     },
     vote_reset {
         id: Uint64,
@@ -53,10 +53,11 @@ pub struct VoteResponse {
     pub yes_count: Uint128,
     pub no_count: Uint128,
     pub abstain_count: Uint128,
+    pub no_with_veto_count: Uint128,
     pub deadline: Scheduled,
     pub owner: String,
     pub topic: String,
-    pub native: Option<String>,
+    pub native_denom: Option<String>,
     pub total_amount: Uint128,
 }
 
@@ -68,9 +69,10 @@ impl Into<VoteResponse> for Vote {
             yes_count: self.yes_count,
             no_count: self.no_count,
             abstain_count: self.abstain_count,
+            no_with_veto_count: self.no_with_veto_count,
             deadline: self.deadline,
             topic: self.topic,
-            native: self.native_denom,
+            native_denom: self.native_denom,
             total_amount: self.total_amount,
         }
     }

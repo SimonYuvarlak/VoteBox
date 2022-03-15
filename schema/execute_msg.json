@@ -19,6 +19,12 @@
             "deadline": {
               "$ref": "#/definitions/Scheduled"
             },
+            "native_denom": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "owner": {
               "type": "string"
             },
@@ -40,14 +46,15 @@
           "type": "object",
           "required": [
             "id",
-            "vote"
+            "vote_type"
           ],
           "properties": {
             "id": {
               "$ref": "#/definitions/Uint64"
             },
-            "vote": {
-              "type": "boolean"
+            "vote_type": {
+              "type": "integer",
+              "format": "int32"
             }
           }
         }

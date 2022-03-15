@@ -4,21 +4,36 @@
   "description": "We define a custom struct for each query response",
   "type": "object",
   "required": [
+    "abstain_count",
     "deadline",
     "id",
     "no_count",
+    "no_with_veto_count",
     "owner",
     "topic",
+    "total_amount",
     "yes_count"
   ],
   "properties": {
+    "abstain_count": {
+      "$ref": "#/definitions/Uint128"
+    },
     "deadline": {
       "$ref": "#/definitions/Scheduled"
     },
     "id": {
       "$ref": "#/definitions/Uint64"
     },
+    "native_denom": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "no_count": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "no_with_veto_count": {
       "$ref": "#/definitions/Uint128"
     },
     "owner": {
@@ -26,6 +41,9 @@
     },
     "topic": {
       "type": "string"
+    },
+    "total_amount": {
+      "$ref": "#/definitions/Uint128"
     },
     "yes_count": {
       "$ref": "#/definitions/Uint128"

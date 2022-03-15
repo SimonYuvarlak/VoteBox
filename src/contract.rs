@@ -14,6 +14,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
+use crate::msg::ExecuteMsg::vote;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
@@ -47,7 +48,7 @@ pub fn execute(
             topic,
             native_denom,
         } => create_vote_box(deps, env, info, deadline, owner, topic, native_denom),
-        ExecuteMsg::vote { id, vote } => execute_vote(deps, env, info, id, vote),
+        ExecuteMsg::vote { id, vote_type } => execute_vote(deps, env, info, id, vote_type),
         ExecuteMsg::vote_reset { id } => reset(deps, env, info, id),
         ExecuteMsg::vote_remove { id } => remove_votebox(deps, env, info, id),
     }
@@ -58,7 +59,7 @@ pub fn execute_vote(
     env: Env,
     info: MessageInfo,
     id: Uint64,
-    vote: i32,
+    vote_type: i32,
 ) -> Result<Response, ContractError> {
     let mut vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
     if vote_box.deadline.is_triggered(&env.block) {
@@ -68,10 +69,11 @@ pub fn execute_vote(
         return Err(ContractError::VoterRepeat {});
     }
 
-    match vote {
+    match vote_type {
         0 => vote_box.no_count = vote_box.no_count.checked_add(Uint128::new(1))?,
         1 => vote_box.abstain_count = vote_box.abstain_count.checked_add(Uint128::new(1))?,
         2 => vote_box.yes_count = vote_box.yes_count.checked_add(Uint128::new(1))?,
+        3 => vote_box.no_with_veto_count = vote_box.no_with_veto_count.checked_add(Uint128::new(1))?,
         _ => return Err(ContractError::InvalidVote {}),
     }
 
@@ -84,7 +86,8 @@ pub fn execute_vote(
         .add_attribute("method", "vote given")
         .add_attribute("yes_count", vote_box.yes_count)
         .add_attribute("no count", vote_box.no_count)
-        .add_attribute("unsure_count", vote_box.abstain_count))
+        .add_attribute("abstain_count", vote_box.abstain_count)
+        .add_attribute("no_with_veto_count", vote_box.no_with_veto_count))
 }
 
 pub fn create_vote_box(
@@ -105,6 +108,7 @@ pub fn create_vote_box(
         yes_count: Uint128::zero(),
         no_count: Uint128::zero(),
         abstain_count: Uint128::zero(),
+        no_with_veto_count: Uint128::zero(),
         deadline: deadline.clone(),
         owner: owner.to_string(),
         topic: topic.clone(),
@@ -149,12 +153,13 @@ pub fn execute_deposit_native(
         .find(|c| c.denom == denom)
         .ok_or(ContractError::NotSupportDenom {})?;
 
-    votebox.total_amount = votebox.total_amount.checked_sub(coin.amount)?;
+    votebox.total_amount = votebox.total_amount.checked_add(coin.amount)?;
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &votebox)?;
 
     Ok(Response::default()
         .add_attribute("action", "deposit")
-        .add_attribute("amount", coin.amount))
+        .add_attribute("deposited_amount", coin.amount)
+        .add_attribute("total_amount", votebox.total_amount))
 }
 
 pub fn execute_claim(
@@ -223,12 +228,16 @@ pub fn reset(
     }
     vote_box.yes_count = Uint128::zero();
     vote_box.no_count = Uint128::zero();
+    vote_box.abstain_count = Uint128::zero();
+    vote_box.no_with_veto_count = Uint128::zero();
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &vote_box);
     Ok(Response::new()
         .add_attribute("method", "vote_reset")
         .add_attribute("yes_count", vote_box.yes_count)
         .add_attribute("no_count", vote_box.no_count)
+        .add_attribute("abstain_count", vote_box.abstain_count)
+        .add_attribute("no_with_veto_count", vote_box.no_with_veto_count)
         .add_attribute("caller", info.sender.to_string()))
 }
 
@@ -271,17 +280,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
-    let vote = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+    let vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
     let res = VoteResponse {
-        id: vote.id,
-        yes_count: vote.yes_count,
-        no_count: vote.no_count,
-        abstain_count: vote.abstain_count,
-        deadline: vote.deadline,
-        owner: vote.owner,
-        topic: vote.topic,
-        native: vote.native_denom,
-        total_amount: vote.total_amount,
+        id: vote_box.id,
+        yes_count: vote_box.yes_count,
+        no_count: vote_box.no_count,
+        abstain_count: vote_box.abstain_count,
+        no_with_veto_count: vote_box.no_with_veto_count,
+        deadline: vote_box.deadline,
+        owner: vote_box.owner,
+        topic: vote_box.topic,
+        native_denom: vote_box.native_denom,
+        total_amount: vote_box.total_amount,
     };
     Ok(res)
 }
@@ -337,7 +347,6 @@ pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxL
     let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-
     let vote_boxes: Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
     let mut voteboxes_owned: Vec<VoteResponse> = vec![];
     for votebox in vote_boxes {
