@@ -10,6 +10,7 @@ pub struct Vote {
     pub id: Uint64,
     pub yes_count: Uint128,
     pub no_count: Uint128,
+    pub abstain_count: Uint128,
     pub deadline: Scheduled,
     pub owner: String,
     pub topic: String,

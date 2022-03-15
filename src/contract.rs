@@ -30,10 +30,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     VOTE_BOX_SEQ.save(deps.storage, &Uint64::zero());
 
-    Ok(Response::new()
-        .add_attribute("method", "instantiate")
-        .add_attribute("yes_count", "0")
-        .add_attribute("no_count", "0"))
+    Ok(Response::new().add_attribute("method", "instantiate"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -61,21 +58,21 @@ pub fn execute_vote(
     env: Env,
     info: MessageInfo,
     id: Uint64,
-    vote: bool,
+    vote: i32,
 ) -> Result<Response, ContractError> {
     let mut vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
     if vote_box.deadline.is_triggered(&env.block) {
         return Err(ContractError::Expired {});
     }
-
     if vote_box.voters.contains(&info.sender) {
         return Err(ContractError::VoterRepeat {});
     }
 
-    if vote {
-        vote_box.yes_count = vote_box.yes_count.checked_add(Uint128::new(1))?;
-    } else {
-        vote_box.no_count = vote_box.no_count.checked_add(Uint128::new(1))?;
+    match vote {
+        0 => vote_box.no_count = vote_box.no_count.checked_add(Uint128::new(1))?,
+        1 => vote_box.abstain_count = vote_box.abstain_count.checked_add(Uint128::new(1))?,
+        2 => vote_box.yes_count = vote_box.yes_count.checked_add(Uint128::new(1))?,
+        _ => return Err(ContractError::InvalidVote {}),
     }
 
     vote_box.voters.push(info.sender);
@@ -86,7 +83,8 @@ pub fn execute_vote(
     Ok(Response::new()
         .add_attribute("method", "vote given")
         .add_attribute("yes_count", vote_box.yes_count)
-        .add_attribute("no count", vote_box.no_count))
+        .add_attribute("no count", vote_box.no_count)
+        .add_attribute("unsure_count", vote_box.abstain_count))
 }
 
 pub fn create_vote_box(
@@ -106,6 +104,7 @@ pub fn create_vote_box(
         id,
         yes_count: Uint128::zero(),
         no_count: Uint128::zero(),
+        abstain_count: Uint128::zero(),
         deadline: deadline.clone(),
         owner: owner.to_string(),
         topic: topic.clone(),
@@ -277,6 +276,7 @@ pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
         id: vote.id,
         yes_count: vote.yes_count,
         no_count: vote.no_count,
+        abstain_count: vote.abstain_count,
         deadline: vote.deadline,
         owner: vote.owner,
         topic: vote.topic,
