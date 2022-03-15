@@ -157,7 +157,7 @@ pub fn remove_votebox(
     }
 
     // alttaki satır isleyince son id bir eksildigi icin ayni id ile tekrar votebox olusturmak deneniyo
-    VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
+    //VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.checked_sub(Uint64::new(1))?));
     VOTE_BOX_LIST.remove(deps.storage, vote_box.id.u64());
 
     Ok(Response::new()
