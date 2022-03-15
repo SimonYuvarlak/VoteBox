@@ -1,9 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
-    Uint128, Uint64,
-};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, Coin, CosmosMsg, BankMsg};
 use cw2::set_contract_version;
 //use cw_multi_test::Contract;
 use cw_storage_plus::Bound;
@@ -50,8 +47,9 @@ pub fn execute(
             deadline,
             owner,
             topic,
-        } => create_vote_box(deps, env, info, deadline, owner, topic),
-        ExecuteMsg::vote { id, vote } => execute_vote(deps, env, id, vote),
+            native_denom,
+        } => create_vote_box(deps, env, info, deadline, owner, topic, native_denom),
+        ExecuteMsg::vote { id, vote } => execute_vote(deps, env, info, id, vote),
         ExecuteMsg::vote_reset { id } => reset(deps, env, info, id),
         ExecuteMsg::vote_remove { id } => remove_votebox(deps, env, info, id),
     }
@@ -60,6 +58,7 @@ pub fn execute(
 pub fn execute_vote(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     id: Uint64,
     vote: bool,
 ) -> Result<Response, ContractError> {
@@ -67,11 +66,19 @@ pub fn execute_vote(
     if vote_box.deadline.is_triggered(&env.block) {
         return Err(ContractError::Expired {});
     }
+
+    if vote_box.voters.contains(&info.sender) {
+        return Err(ContractError::VoterRepeat {});
+    }
+
     if vote {
         vote_box.yes_count = vote_box.yes_count.checked_add(Uint128::new(1))?;
     } else {
         vote_box.no_count = vote_box.no_count.checked_add(Uint128::new(1))?;
     }
+
+    vote_box.voters.push(info.sender);
+    vote_box.voter_count = vote_box.voter_count.checked_add(Uint128::new(1))?;
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &vote_box);
 
@@ -88,6 +95,7 @@ pub fn create_vote_box(
     deadline: Scheduled,
     owner: String,
     topic: String,
+    native_denom: Option<String>,
 ) -> Result<Response, ContractError> {
     let check = deps.api.addr_validate(&owner)?;
 
@@ -100,6 +108,10 @@ pub fn create_vote_box(
         deadline: deadline.clone(),
         owner: owner.clone(),
         topic: topic.clone(),
+        total_amount: Uint128::zero(),
+        native_denom,
+        voters: vec![],
+        voter_count: Uint128::zero(),
     };
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &new_vote_box)?;
@@ -108,6 +120,89 @@ pub fn create_vote_box(
         .add_attribute("print_id", id)
         .add_attribute("owner", owner.clone())
         .add_attribute("topic", topic.clone()))
+}
+
+pub fn execute_deposit_native(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    id: Uint64,
+) -> Result<Response, ContractError> {
+    let mut votebox = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+
+    if info.sender != votebox.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if votebox.deadline.is_triggered(&env.block) {
+        return Err(ContractError::Expired {});
+    }
+
+    let denom = votebox
+        .native_denom
+        .clone()
+        .ok_or(ContractError::SendNativeTokens {})?;
+
+    let coin: &Coin = info
+        .funds
+        .iter()
+        .find(|c| c.denom == denom)
+        .ok_or(ContractError::NotSupportDenom {})?;
+
+    votebox.total_amount = votebox.total_amount.checked_sub(coin.amount)?;
+    VOTE_BOX_LIST.save(deps.storage, id.u64(), &votebox)?;
+
+    Ok(Response::default()
+        .add_attribute("action", "deposit")
+        .add_attribute("amount", coin.amount))
+}
+
+pub fn execute_claim(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    id: Uint64,
+) -> Result<Response, ContractError> {
+    let mut votebox = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+
+    if !votebox.deadline.is_triggered(&env.block) {
+        return Err(ContractError::Unexpired {});
+    }
+
+    let index = votebox
+        .voters
+        .iter()
+        .position(|x| *x == info.sender)
+        .ok_or(ContractError::Unauthorized {})?;
+
+    let amount = calc_amount(votebox.clone());
+
+    let msg: CosmosMsg = match votebox.native_denom.clone() {
+        None => Err(ContractError::FreeVotes {}),
+        Some(native) => {
+            let balance = deps
+                .querier
+                .query_balance(env.contract.address, native.clone())?;
+            if balance.amount < amount {
+                return Err(ContractError::InsufficientBalance {});
+            }
+            let msg = BankMsg::Send {
+                to_address: votebox.voters.remove(index).to_string(),
+                amount: vec![Coin {
+                    denom: native,
+                    amount,
+                }],
+            };
+            Ok(CosmosMsg::Bank(msg))
+        }
+    }?;
+    VOTE_BOX_LIST.save(deps.storage, id.u64(), &votebox)?;
+    let res = Response::new().add_message(msg);
+    Ok(res)
+}
+
+pub fn calc_amount(votebox: Vote) -> Uint128{
+    return votebox.total_amount / votebox.voter_count;
 }
 
 pub fn reset(
@@ -186,6 +281,8 @@ pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
         deadline: vote.deadline,
         owner: vote.owner,
         topic: vote.topic,
+        native: vote.native_denom,
+        total_amount: vote.total_amount,
     };
     Ok(res)
 }
@@ -250,6 +347,8 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, QueryResponse};
     use cw_utils::Scheduled;
+    use schemars::schema::InstanceType::String;
+    use serde::__private::de::IdentifierDeserializer;
 
     /*
     #[test]
@@ -368,6 +467,155 @@ mod tests {
 
         let res: VBOCResponse = query_vb_open_closed(deps.as_ref(), env.clone()).unwrap();
         println!("All is {}, open {}, closed {}", (res.open + res.closed), res.open, res.closed);
+
+    }*/
+
+    /*#[test]
+    fn deposit_vote_claim_test_free(){
+        let mut deps = mock_dependencies();
+
+        let msg = InstantiateMsg{};
+        let info = mock_info("creator", &[]);
+        let mut env = mock_env();
+        env.block.height = 1;
+        //instantiate votebox contract
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "creator".to_string(),
+            topic: "BISI".to_string(),
+            native_denom: None,
+        };
+        // create() votebox id "1" height "5"
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        //try claim() env.height "1" deadline "5" voters "empty"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unexpired {});
+
+        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "none" senders_denom "none"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::SendNativeTokens {});
+
+        let info = mock_info("creator", &coins(1000, "juno"));
+        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "none" senders_denom "juno"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::SendNativeTokens {});
+
+        let info = mock_info("newone", &[]);
+        //try deposit_native() env.height "1" deadline "5" voters "empty" owner "crator" sender "newone"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        // set block height to "6"
+        env.block.height = 6;
+
+        //try claim() env.height "6" deadline "5" voters "empty"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        //try vote() env.height "6" deadline "5"
+        let err = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap_err();
+        assert_eq!(err, ContractError::Expired {});
+
+        // set block height to "1"
+        env.block.height = 1;
+
+        let info = mock_info("creator", &[]);
+        //vote() env.height "1" deadline "5" voters "empty" sender "creator"
+        let res = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap();
+        println!("{:?}", res);
+
+        //try vote() env.height "1" deadline "5" voters[0] "creator" sender "creator"
+        let err = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap_err();
+        assert_eq!(err, ContractError::VoterRepeat {});
+
+        let info = mock_info("newone", &[]);
+        //vote() env.height "1" deadline "5" voters[0] "creator" sender "newone"
+        let res = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap();
+        println!("{:?}", res);
+
+        // set block height to "6"
+        env.block.height = 6;
+
+        //try claim() env.height "6" deadline "5" voters[0] "creator" sender "creator"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::FreeVotes {});
+    }*/
+
+    /*#[test]
+    fn deposit_vote_claim_test_native(){
+        let mut deps = mock_dependencies();
+
+        let msg = InstantiateMsg{};
+        let info = mock_info("creator", &coins(1000, "juno"));
+        let mut env = mock_env();
+        env.block.height = 1;
+        //instantiate votebox contract
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "creator".to_string(),
+            topic: "top".to_string(),
+            native_denom: Option::from("juno".to_string()),
+        };
+        // create() votebox id "1" height "5"
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        //try claim() env.height "1" deadline "5" denom "juno" senders_denom "juno" voters "empty"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unexpired {});
+
+        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "juno" senders_denom "juno"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::SendNativeTokens {});
+        *
+        let info = mock_info("creator", &coins(1000, "juno"));
+        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "none" senders_denom "juno"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::SendNativeTokens {});
+
+        let info = mock_info("newone", &[]);
+        //try deposit_native() env.height "1" deadline "5" voters "empty" owner "crator" sender "newone"
+        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        // set block height to "6"
+        env.block.height = 6;
+
+        //try claim() env.height "6" deadline "5" voters "empty"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        //try vote() env.height "6" deadline "5"
+        let err = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap_err();
+        assert_eq!(err, ContractError::Expired {});
+
+        // set block height to "1"
+        env.block.height = 1;
+
+        let info = mock_info("creator", &[]);
+        //vote() env.height "1" deadline "5" voters "empty" sender "creator"
+        let res = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap();
+        println!("{:?}", res);
+
+        //try vote() env.height "1" deadline "5" voters[0] "creator" sender "creator"
+        let err = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap_err();
+        assert_eq!(err, ContractError::VoterRepeat {});
+
+        let info = mock_info("newone", &[]);
+        //vote() env.height "1" deadline "5" voters[0] "creator" sender "newone"
+        let res = execute_vote(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1), true).unwrap();
+        println!("{:?}", res);
+
+        // set block height to "6"
+        env.block.height = 6;
+
+        //try claim() env.height "6" deadline "5" voters[0] "creator" sender "creator"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::FreeVotes {});
+
 
     }*/
 
