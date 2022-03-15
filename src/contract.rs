@@ -9,6 +9,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
+use std::ptr::null;
 //use std::os::macos::raw::stat;
 
 use crate::error::ContractError;
@@ -174,6 +175,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?),
         QueryMsg::get_vbop_count {} => to_binary(&query_votebox_count(deps)?),
+        QueryMsg::get_voteboxes_by_owner {owner} => to_binary(&query_voteboxes_by_owner(deps, owner)?),
     }
 }
 
@@ -242,6 +244,25 @@ pub fn query_vb_open_closed(
         closed,
     };
     Ok(res)
+}
+pub fn query_voteboxes_by_owner(
+    deps: Deps,
+    owner: String,
+) -> StdResult<VoteBoxListResponse> {
+        let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending).collect();
+
+       let vote_boxes:  Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
+       let mut voteboxes_owned: Vec<VoteResponse> = vec![];
+       for votebox in vote_boxes{
+           if (votebox.owner == owner) {
+               voteboxes_owned.push(votebox.into());
+           }
+       }
+       let res = VoteBoxListResponse {
+           voteList: voteboxes_owned,
+       };
+       Ok(res)
 }
 #[cfg(test)]
 mod tests {
