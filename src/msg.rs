@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[allow(non_camel_case_types)]
 pub enum ExecuteMsg {
     create_vote_box {
         deadline: Scheduled,
@@ -29,7 +29,7 @@ pub enum ExecuteMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[allow(non_camel_case_types)]
 pub enum QueryMsg {
     query_vote {
         id: Uint64,
@@ -40,10 +40,14 @@ pub enum QueryMsg {
     },
     get_votebox_count {},
     get_vbop_count {},
+    get_voteboxes_by_owner {
+        owner: String,
+    },
 }
 
 /// We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
 pub struct VoteResponse {
     pub id: Uint64,
     pub yes_count: Uint128,
@@ -77,6 +81,7 @@ pub struct VBCountResponse {
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[allow(non_snake_case)]
 pub struct VoteBoxListResponse {
     pub voteList: Vec<VoteResponse>,
 }

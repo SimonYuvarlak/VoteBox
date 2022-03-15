@@ -1,25 +1,23 @@
+use crate::error::ContractError;
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VBOCResponse, VoteBoxListResponse,
+    VoteResponse,
+};
+use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, Coin, CosmosMsg, BankMsg};
 use cw2::set_contract_version;
-//use cw_multi_test::Contract;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
-//use std::os::macos::raw::stat;
-
-use crate::error::ContractError;
-use crate::msg::ExecuteMsg::vote_reset;
-use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VoteBoxListResponse, VoteResponse, VBOCResponse
-};
-use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+#[allow(unused_must_use)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -54,7 +52,7 @@ pub fn execute(
         ExecuteMsg::vote_remove { id } => remove_votebox(deps, env, info, id),
     }
 }
-
+#[allow(unused_must_use)]
 pub fn execute_vote(
     deps: DepsMut,
     env: Env,
@@ -97,16 +95,16 @@ pub fn create_vote_box(
     topic: String,
     native_denom: Option<String>,
 ) -> Result<Response, ContractError> {
-    let check = deps.api.addr_validate(&owner)?;
+    let owner = deps.api.addr_validate(&owner)?;
 
     let id = VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.add(Uint64::new(1))))?;
 
-    let mut new_vote_box = Vote {
+    let new_vote_box = Vote {
         id,
         yes_count: Uint128::zero(),
         no_count: Uint128::zero(),
         deadline: deadline.clone(),
-        owner: owner.clone(),
+        owner: owner.to_string(),
         topic: topic.clone(),
         total_amount: Uint128::zero(),
         native_denom,
@@ -205,15 +203,14 @@ pub fn calc_amount(votebox: Vote) -> Uint128{
     return votebox.total_amount / votebox.voter_count;
 }
 
+
+#[allow(unused_must_use)]
 pub fn reset(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     id: Uint64,
 ) -> Result<Response, ContractError> {
-    let mut param1: Uint128 = Uint128::zero();
-    let mut param2: Uint128 = Uint128::zero();
-
     let mut vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
 
     if info.sender != vote_box.owner {
@@ -223,27 +220,24 @@ pub fn reset(
     if vote_box.deadline.is_triggered(&env.block) {
         return Err(ContractError::Expired {});
     }
-
     vote_box.yes_count = Uint128::zero();
     vote_box.no_count = Uint128::zero();
-    param1 = vote_box.yes_count;
-    param2 = vote_box.no_count;
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &vote_box);
     Ok(Response::new()
         .add_attribute("method", "vote_reset")
-        .add_attribute("yes_count", param1)
-        .add_attribute("no_count", param2)
+        .add_attribute("yes_count", vote_box.yes_count)
+        .add_attribute("no_count", vote_box.no_count)
         .add_attribute("caller", info.sender.to_string()))
 }
 
 pub fn remove_votebox(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     id: Uint64,
 ) -> Result<Response, ContractError> {
-    let mut vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
+    let vote_box = VOTE_BOX_LIST.load(deps.storage, id.u64())?;
     if info.sender != vote_box.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -269,6 +263,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::get_votebox_count {} => to_binary(&query_votebox_count(deps)?),
         QueryMsg::get_vbop_count {} => to_binary(&query_votebox_count(deps)?),
+        QueryMsg::get_voteboxes_by_owner { owner } => {
+            to_binary(&query_voteboxes_by_owner(deps, owner)?)
+        }
     }
 }
 
@@ -315,10 +312,7 @@ pub fn query_votebox_count(deps: Deps) -> StdResult<VBCountResponse> {
     Ok(res)
 }
 
-pub fn query_vb_open_closed(
-    deps: Deps,
-    env: Env,
-) -> StdResult<VBOCResponse> {
+pub fn query_vb_open_closed(deps: Deps, env: Env) -> StdResult<VBOCResponse> {
     let votes: StdResult<Vec<_>> = VOTE_BOX_LIST
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
@@ -327,28 +321,45 @@ pub fn query_vb_open_closed(
     let mut open = Uint64::zero();
     let mut closed = Uint64::zero();
 
-    for i in bisi{
-        if i.deadline.is_triggered(&env.block){
+    for i in bisi {
+        if i.deadline.is_triggered(&env.block) {
             closed += Uint64::new(1);
         } else {
             open += Uint64::new(1);
         }
     }
-    let res = VBOCResponse {
-        open,
-        closed,
+    let res = VBOCResponse { open, closed };
+    Ok(res)
+}
+pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxListResponse> {
+    let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    let vote_boxes: Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
+    let mut voteboxes_owned: Vec<VoteResponse> = vec![];
+    for votebox in vote_boxes {
+        if votebox.owner == owner {
+            voteboxes_owned.push(votebox.into());
+        }
+    }
+    let res = VoteBoxListResponse {
+        voteList: voteboxes_owned,
     };
     Ok(res)
 }
 #[cfg(test)]
 mod tests {
-    use std::u64;
+    /*
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info,
+    };
     use cosmwasm_std::{coins, from_binary, QueryResponse};
     use cw_utils::Scheduled;
     use schemars::schema::InstanceType::String;
     use serde::__private::de::IdentifierDeserializer;
+
 
     /*
     #[test]
