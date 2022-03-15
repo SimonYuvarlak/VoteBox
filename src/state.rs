@@ -13,6 +13,10 @@ pub struct Vote {
     pub deadline: Scheduled,
     pub owner: String,
     pub topic: String,
+    pub total_amount: Uint128,
+    pub native_denom: Option<String>,
+    pub voters: Vec<Addr>,
+    pub voter_count: Uint128,
 }
 
 pub const VOTE_BOX_LIST: Map<u64, Vote> = Map::new("votebox list");
