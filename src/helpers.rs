@@ -1,46 +1,32 @@
-// use schemars::JsonSchema;
-// use serde::{Deserialize, Serialize};
-//
-// use cosmwasm_std::{
-//     to_binary, Addr, CosmosMsg, CustomQuery, Querier, QuerierWrapper, StdResult, WasmMsg, WasmQuery,
-// };
-//
-// use crate::msg::{CountResponse, ExecuteMsg, QueryMsg};
-//
-// /// CwTemplateContract is a wrapper around Addr that provides a lot of helpers
-// /// for working with this.
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct CwTemplateContract(pub Addr);
-//
-// impl CwTemplateContract {
-//     pub fn addr(&self) -> Addr {
-//         self.0.clone()
-//     }
-//
-//     pub fn call<T: Into<ExecuteMsg>>(&self, msg: T) -> StdResult<CosmosMsg> {
-//         let msg = to_binary(&msg.into())?;
-//         Ok(WasmMsg::Execute {
-//             contract_addr: self.addr().into(),
-//             msg,
-//             funds: vec![],
-//         }
-//         .into())
-//     }
-//
-//     /// Get Count
-//     pub fn count<Q, T, CQ>(&self, querier: &Q) -> StdResult<CountResponse>
-//     where
-//         Q: Querier,
-//         T: Into<String>,
-//         CQ: CustomQuery,
-//     {
-//         let msg = QueryMsg::GetCount {};
-//         let query = WasmQuery::Smart {
-//             contract_addr: self.addr().into(),
-//             msg: to_binary(&msg)?,
-//         }
-//         .into();
-//         let res: CountResponse = QuerierWrapper::<CQ>::new(querier).query(&query)?;
-//         Ok(res)
-//     }
-// }
+/* use cosmwasm_std::{
+    to_binary, Addr, CosmosMsg, CustomQuery, Querier, QuerierWrapper, StdResult, Uint128, Uint64,
+    WasmMsg, WasmQuery,
+};
+use crate::msg::{ExecuteMsg, QueryMsg};
+
+ */
+use crate::state::Vote;
+
+pub fn get_winner(votebox: Vote) -> i32 {
+    let yes = votebox.yes_count;
+    let no = votebox.no_count;
+    let abs = votebox.abstain_count;
+    let veto = votebox.no_with_veto_count;
+    let mut votes_vec = vec![yes, no, abs, veto];
+    votes_vec.sort();
+    if votes_vec[0] == votes_vec[1] {
+        4
+    } else {
+        if votes_vec[0] == votebox.yes_count {
+            return 2;
+        }
+        if votes_vec[0] == votebox.no_count {
+            return 0;
+        }
+        return if votes_vec[0] == votebox.abstain_count {
+            1
+        } else {
+            3
+        };
+    }
+}

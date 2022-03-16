@@ -1,7 +1,8 @@
 use crate::error::ContractError;
+use crate::helpers::get_winner;
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, VBCountResponse, VBOCResponse, VoteBoxListResponse,
-    VoteResponse,
+    VoteResponse, VoteboxStatistics,
 };
 use crate::state::{Vote, VOTE_BOX_LIST, VOTE_BOX_SEQ};
 #[cfg(not(feature = "library"))]
@@ -284,7 +285,7 @@ pub fn remove_votebox(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::query_vote { id } => to_binary(&query_vote(deps, id)?),
         QueryMsg::get_list { start_after, limit } => {
@@ -295,6 +296,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::get_voteboxes_by_owner { owner } => {
             to_binary(&query_voteboxes_by_owner(deps, owner)?)
         }
+        QueryMsg::get_statistics {} => to_binary(&query_stats(deps, env)?),
     }
 }
 
@@ -364,6 +366,62 @@ pub fn query_vb_open_closed(deps: Deps, env: Env) -> StdResult<VBOCResponse> {
     let res = VBOCResponse { open, closed };
     Ok(res)
 }
+
+pub fn query_stats(deps: Deps, env: Env) -> StdResult<VoteboxStatistics> {
+    let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    let all_voteboxes: Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
+    let mut stats = VoteboxStatistics {
+        total_participants: Uint128::new(0),
+        total_voteboxes: Uint128::new(0),
+        expired: Uint128::new(0),
+        active: Uint128::new(0),
+        yes_won: Uint128::new(0),
+        no_won: Uint128::new(0),
+        abstain_won: Uint128::new(0),
+        no_veto_won: Uint128::new(0),
+        total_yes_count: Uint128::new(0),
+        total_no_count: Uint128::new(0),
+        total_abstain_count: Uint128::new(0),
+        total_no_veto_count: Uint128::new(0),
+    };
+
+    for votebox in all_voteboxes {
+        stats.total_no_veto_count = stats
+            .total_no_veto_count
+            .checked_add(votebox.no_with_veto_count)?;
+
+        stats.total_abstain_count = stats
+            .total_abstain_count
+            .checked_add(votebox.abstain_count)?;
+        stats.total_no_count = stats.total_no_count.checked_add(votebox.no_count)?;
+        stats.total_yes_count = stats.total_yes_count.checked_add(votebox.yes_count)?;
+        stats.total_voteboxes = stats.total_voteboxes.checked_add(Uint128::new(1))?;
+        stats.total_participants = stats.total_participants.checked_add(
+            votebox.abstain_count
+                + votebox.no_count
+                + votebox.yes_count
+                + votebox.no_with_veto_count,
+        )?;
+
+        if votebox.deadline.is_triggered(&env.block) {
+            stats.expired = stats.expired.checked_add(Uint128::new(1))?;
+            match get_winner(votebox) {
+                0 => stats.no_won = stats.no_won.checked_add(Uint128::new(1))?,
+                1 => stats.abstain_won = stats.abstain_won.checked_add(Uint128::new(1))?,
+                2 => stats.yes_won = stats.yes_won.checked_add(Uint128::new(1))?,
+                3 => stats.no_veto_won = stats.no_veto_won.checked_add(Uint128::new(1))?,
+                _ => {}
+            }
+        } else {
+            stats.active = stats.active.checked_add(Uint128::new(1))?;
+        }
+    }
+
+    Ok(stats)
+}
+
 pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxListResponse> {
     let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
         .range(deps.storage, None, None, Order::Ascending)
@@ -382,7 +440,7 @@ pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxL
 }
 #[cfg(test)]
 mod tests {
-    /*
+
     use super::*;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info,
@@ -391,8 +449,6 @@ mod tests {
     use cw_utils::Scheduled;
     use schemars::schema::InstanceType::String;
     use serde::__private::de::IdentifierDeserializer;
-
-     */
 
     /*
     #[test]
@@ -730,4 +786,72 @@ mod tests {
         // assert_eq!("trial", value[3].value, "topic is: {}", value[3].value);
 
     }*/
+
+    /*
+    /// QUERY STATISTICS TESTS CASES CAN BE INCREASED
+    #[test]
+    fn query_stats_integration() {
+        let mut deps = mock_dependencies();
+
+        let msg = InstantiateMsg {};
+        let info = mock_info("creator", &[]);
+        let mut env = mock_env();
+        env.block.height = 1;
+        //instantiate votebox contract
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(131231231412311235),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string(),
+            description: "description".to_string(),
+            create_date: "date".to_string(),
+            native_denom: None,
+        };
+        // create votebox id 1 height 5
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // create votebox id 2 height 5
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(41231236),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string(),
+            description: "description".to_string(),
+            create_date: "date".to_string(),
+            native_denom: None,
+        };
+        // create votebox id 3 height 6
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(2131231231233),
+            owner: "OWNER".to_string(),
+            topic: "BISI".to_string(),
+            description: "description".to_string(),
+            create_date: "date".to_string(),
+            native_denom: None,
+        };
+        // create votebox id 4 height 3
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // create votebox id 5 height 3
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+        // set block height to 4
+        env.block.height = 4;
+
+        ///Increment
+        let msg = ExecuteMsg::vote {
+            id: Uint64::new(1),
+            vote_type: 1,
+        };
+        let info = mock_info("OWNER", &coins(1000, "earth"));
+        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let value = res.attributes;
+
+        let queryMsg = QueryMsg::get_statistics {};
+
+        let res_stat = query_stats(deps.as_ref(), mock_env()).unwrap();
+        println!("{:?}", res_stat);
+    }
+    */
 }

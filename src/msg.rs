@@ -45,11 +45,27 @@ pub enum QueryMsg {
     get_voteboxes_by_owner {
         owner: String,
     },
+    get_statistics {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+pub struct VoteboxStatistics {
+    pub total_participants: Uint128,
+    pub total_voteboxes: Uint128,
+    pub expired: Uint128,
+    pub active: Uint128,
+    pub yes_won: Uint128,
+    pub no_won: Uint128,
+    pub abstain_won: Uint128,
+    pub no_veto_won: Uint128,
+    pub total_yes_count: Uint128,
+    pub total_no_count: Uint128,
+    pub total_abstain_count: Uint128,
+    pub total_no_veto_count: Uint128,
 }
 
 /// We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-
 pub struct VoteResponse {
     pub id: Uint64,
     pub yes_count: Uint128,
