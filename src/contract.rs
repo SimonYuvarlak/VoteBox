@@ -46,6 +46,7 @@ pub fn execute(
             owner,
             topic,
             description,
+            create_date,
             native_denom,
         } => create_vote_box(
             deps,
@@ -55,6 +56,7 @@ pub fn execute(
             owner,
             topic,
             description,
+            create_date,
             native_denom,
         ),
         ExecuteMsg::vote { id, vote_type } => execute_vote(deps, env, info, id, vote_type),
@@ -110,6 +112,7 @@ pub fn create_vote_box(
     owner: String,
     topic: String,
     description: String,
+    create_date: String,
     native_denom: Option<String>,
 ) -> Result<Response, ContractError> {
     let owner = deps.api.addr_validate(&owner)?;
@@ -126,6 +129,7 @@ pub fn create_vote_box(
         owner: owner.to_string(),
         topic: topic.clone(),
         description: description.clone(),
+        create_date: create_date.clone(),
         total_amount: Uint128::zero(),
         native_denom,
         voters: vec![],
@@ -305,6 +309,7 @@ pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
         deadline: vote_box.deadline,
         owner: vote_box.owner,
         topic: vote_box.topic,
+        create_date: vote_box.create_date,
         description: vote_box.description,
         native_denom: vote_box.native_denom,
         total_amount: vote_box.total_amount,
