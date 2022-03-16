@@ -14,7 +14,6 @@ use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::Scheduled;
 use std::ops::Add;
-use crate::msg::ExecuteMsg::vote;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:vote";
@@ -46,8 +45,18 @@ pub fn execute(
             deadline,
             owner,
             topic,
+            description,
             native_denom,
-        } => create_vote_box(deps, env, info, deadline, owner, topic, native_denom),
+        } => create_vote_box(
+            deps,
+            env,
+            info,
+            deadline,
+            owner,
+            topic,
+            description,
+            native_denom,
+        ),
         ExecuteMsg::vote { id, vote_type } => execute_vote(deps, env, info, id, vote_type),
         ExecuteMsg::vote_reset { id } => reset(deps, env, info, id),
         ExecuteMsg::vote_remove { id } => remove_votebox(deps, env, info, id),
@@ -73,7 +82,10 @@ pub fn execute_vote(
         0 => vote_box.no_count = vote_box.no_count.checked_add(Uint128::new(1))?,
         1 => vote_box.abstain_count = vote_box.abstain_count.checked_add(Uint128::new(1))?,
         2 => vote_box.yes_count = vote_box.yes_count.checked_add(Uint128::new(1))?,
-        3 => vote_box.no_with_veto_count = vote_box.no_with_veto_count.checked_add(Uint128::new(1))?,
+        3 => {
+            vote_box.no_with_veto_count =
+                vote_box.no_with_veto_count.checked_add(Uint128::new(1))?
+        }
         _ => return Err(ContractError::InvalidVote {}),
     }
 
@@ -97,6 +109,7 @@ pub fn create_vote_box(
     deadline: Scheduled,
     owner: String,
     topic: String,
+    description: String,
     native_denom: Option<String>,
 ) -> Result<Response, ContractError> {
     let owner = deps.api.addr_validate(&owner)?;
@@ -112,6 +125,7 @@ pub fn create_vote_box(
         deadline: deadline.clone(),
         owner: owner.to_string(),
         topic: topic.clone(),
+        description: description.clone(),
         total_amount: Uint128::zero(),
         native_denom,
         voters: vec![],
@@ -123,7 +137,8 @@ pub fn create_vote_box(
         .add_attribute("create_vote", "success")
         .add_attribute("print_id", id)
         .add_attribute("owner", owner.clone())
-        .add_attribute("topic", topic.clone()))
+        .add_attribute("topic", topic.clone())
+        .add_attribute("description", description.clone()))
 }
 
 pub fn execute_deposit_native(
@@ -290,6 +305,7 @@ pub fn query_vote(deps: Deps, id: Uint64) -> StdResult<VoteResponse> {
         deadline: vote_box.deadline,
         owner: vote_box.owner,
         topic: vote_box.topic,
+        description: vote_box.description,
         native_denom: vote_box.native_denom,
         total_amount: vote_box.total_amount,
     };

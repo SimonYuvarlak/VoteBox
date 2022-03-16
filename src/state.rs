@@ -15,6 +15,7 @@ pub struct Vote {
     pub deadline: Scheduled,
     pub owner: String,
     pub topic: String,
+    pub description: String,
     pub total_amount: Uint128,
     pub native_denom: Option<String>,
     pub voters: Vec<Addr>,

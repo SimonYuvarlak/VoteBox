@@ -14,6 +14,7 @@ pub enum ExecuteMsg {
         deadline: Scheduled,
         owner: String,
         topic: String,
+        description: String,
         native_denom: Option<String>,
     },
     vote {
@@ -57,6 +58,7 @@ pub struct VoteResponse {
     pub deadline: Scheduled,
     pub owner: String,
     pub topic: String,
+    pub description: String,
     pub native_denom: Option<String>,
     pub total_amount: Uint128,
 }
@@ -72,6 +74,7 @@ impl Into<VoteResponse> for Vote {
             no_with_veto_count: self.no_with_veto_count,
             deadline: self.deadline,
             topic: self.topic,
+            description: self.description,
             native_denom: self.native_denom,
             total_amount: self.total_amount,
         }
