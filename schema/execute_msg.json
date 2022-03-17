@@ -11,13 +11,21 @@
         "create_vote_box": {
           "type": "object",
           "required": [
+            "create_date",
             "deadline",
+            "description",
             "owner",
             "topic"
           ],
           "properties": {
+            "create_date": {
+              "type": "string"
+            },
             "deadline": {
               "$ref": "#/definitions/Scheduled"
+            },
+            "description": {
+              "type": "string"
             },
             "native_denom": {
               "type": [

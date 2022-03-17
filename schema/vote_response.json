@@ -5,7 +5,9 @@
   "type": "object",
   "required": [
     "abstain_count",
+    "create_date",
     "deadline",
+    "description",
     "id",
     "no_count",
     "no_with_veto_count",
@@ -18,8 +20,14 @@
     "abstain_count": {
       "$ref": "#/definitions/Uint128"
     },
+    "create_date": {
+      "type": "string"
+    },
     "deadline": {
       "$ref": "#/definitions/Scheduled"
+    },
+    "description": {
+      "type": "string"
     },
     "id": {
       "$ref": "#/definitions/Uint64"

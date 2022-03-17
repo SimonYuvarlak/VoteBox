@@ -46,7 +46,7 @@ pub enum QueryMsg {
         owner: String,
     },
     get_voteboxes_by_topic {
-        topic: str,
+        topic: String,
     },
     get_statistics {},
 }
