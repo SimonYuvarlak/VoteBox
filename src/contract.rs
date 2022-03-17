@@ -296,6 +296,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::get_voteboxes_by_owner { owner } => {
             to_binary(&query_voteboxes_by_owner(deps, owner)?)
         }
+        QueryMsg::get_voteboxes_by_topic { topic } => {
+            to_binary( &query_votebox_topics(deps, &topic)?)
+        }
         QueryMsg::get_statistics {} => to_binary(&query_stats(deps, env)?),
     }
 }
@@ -438,8 +441,27 @@ pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxL
     };
     Ok(res)
 }
+
+pub fn query_votebox_topics(deps: Deps, topic: &str) -> StdResult<VoteBoxListResponse> {
+    let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    let vote_boxes: Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
+    let mut voteboxes_topics: Vec<VoteResponse> = vec![];
+    for votebox in vote_boxes {
+        if votebox.topic.contains(&topic) {
+            voteboxes_topics.push(votebox.into());
+        }
+    }
+    let res = VoteBoxListResponse {
+        voteList: voteboxes_topics,
+    };
+    Ok(res)
+}
 #[cfg(test)]
 mod tests {
+
+    /*use super::*;
 
     use super::*;
     use cosmwasm_std::testing::{
@@ -449,6 +471,8 @@ mod tests {
     use cw_utils::Scheduled;
     use schemars::schema::InstanceType::String;
     use serde::__private::de::IdentifierDeserializer;
+    */
+
 
     /*
     #[test]
@@ -646,11 +670,12 @@ mod tests {
 
     /*#[test]
     fn deposit_vote_claim_test_native(){
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_with_balance(&coins(1000, "juno"));
 
         let msg = InstantiateMsg{};
         let info = mock_info("creator", &coins(1000, "juno"));
         let mut env = mock_env();
+
         env.block.height = 1;
         //instantiate votebox contract
         let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -667,14 +692,14 @@ mod tests {
         let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
         assert_eq!(err, ContractError::Unexpired {});
 
-        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "juno" senders_denom "juno"
+        //deposit_native() env.height "1" deadline "5" voters "empty" denom "juno" senders_denom "juno"
+        let res = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap();
+        println!("{:?}", res);
+
+        let info = mock_info("creator", &coins(1000, "new"));
+        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "juno" senders_denom "new"
         let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
-        assert_eq!(err, ContractError::SendNativeTokens {});
-        *
-        let info = mock_info("creator", &coins(1000, "juno"));
-        //try deposit_native() env.height "1" deadline "5" voters "empty" denom "none" senders_denom "juno"
-        let err = execute_deposit_native(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
-        assert_eq!(err, ContractError::SendNativeTokens {});
+        assert_eq!(err, ContractError::NotSupportDenom {});
 
         let info = mock_info("newone", &[]);
         //try deposit_native() env.height "1" deadline "5" voters "empty" owner "crator" sender "newone"
@@ -712,10 +737,75 @@ mod tests {
         // set block height to "6"
         env.block.height = 6;
 
-        //try claim() env.height "6" deadline "5" voters[0] "creator" sender "creator"
+        let info = mock_info("not_voted", &[]);
+        //try claim() env.height "6" deadline "5" voters[0] "creator" sender "not_voted" balance "0"
         let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
-        assert_eq!(err, ContractError::FreeVotes {});
+        assert_eq!(err, ContractError::Unauthorized {});
 
+        let info = mock_info("creator", &[]);
+        //claim() env.height "6" deadline "5" voters[0] "creator" sender "creator" balance "1000"
+        let res = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap();
+        println!("{:?}", res);
+
+        //try claim() 2nd time env.height "6" deadline "5" voters[0] "creator" sender "creator" balance "500"
+        let err = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap_err();
+        assert_eq!(err, ContractError::Unauthorized {});
+
+        let info = mock_info("newone", &coins(10, "juno"));
+        //claim() env.height "6" deadline "5" voters[0] "creator" sender "creator" balance "1000"
+        let res = execute_claim(deps.as_mut(),env.clone(), info.clone(), Uint64::new(1)).unwrap();
+        println!("{:?}", res);
+
+    }*/
+
+    /*#[test]
+    fn query_topic_search(){
+        let mut deps = mock_dependencies_with_balance(&coins(1000, "juno"));
+
+        let msg = InstantiateMsg{};
+        let info = mock_info("creator", &coins(1000, "juno"));
+        let mut env = mock_env();
+
+        env.block.height = 1;
+        //instantiate votebox contract
+        let _res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "creator".to_string(),
+            topic: "top long name".to_string(),
+            description: "name".to_string(),
+            create_date: "1".to_string(),
+            native_denom: Option::from("juno".to_string()),
+        };
+        // create() votebox id "1" topic "top long name"
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "creator".to_string(),
+            topic: "topshortname".to_string(),
+            description: "name".to_string(),
+            create_date: "1".to_string(),
+            native_denom: Option::from("juno".to_string()),
+        };
+        // create() votebox id "2" topic "topshortname"
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        let msg = ExecuteMsg::create_vote_box {
+            deadline: Scheduled::AtHeight(5),
+            owner: "creator".to_string(),
+            topic: "asddefe".to_string(),
+            description: "name".to_string(),
+            create_date: "1".to_string(),
+            native_denom: Option::from("juno".to_string()),
+        };
+        // create() votebox id "3" topic "asddefe"
+        execute(deps.as_mut(), env.clone(), info.clone(), msg.clone());
+
+        //try claim() env.height "1" deadline "5" denom "juno" senders_denom "juno" voters "empty"
+        let res = query_voteboxe_topics(deps.as_ref(),"top").unwrap();
+        println!("{:?}", res);
 
     }*/
 
