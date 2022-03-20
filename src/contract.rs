@@ -442,14 +442,14 @@ pub fn query_voteboxes_by_owner(deps: Deps, owner: String) -> StdResult<VoteBoxL
     Ok(res)
 }
 
-pub fn query_votebox_topics(deps: Deps, topic: &str) -> StdResult<VoteBoxListResponse> {
+pub fn query_votebox_topics(deps: Deps, topic: &String) -> StdResult<VoteBoxListResponse> {
     let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     let vote_boxes: Vec<Vote> = voteboxes?.into_iter().map(|list| list.1).collect();
     let mut voteboxes_topics: Vec<VoteResponse> = vec![];
     for votebox in vote_boxes {
-        if votebox.topic.contains(&topic) {
+        if votebox.topic.to_lowercase().contains(&topic.to_lowercase()) {
             voteboxes_topics.push(votebox.into());
         }
     }
