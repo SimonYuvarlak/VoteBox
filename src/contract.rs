@@ -260,6 +260,8 @@ pub fn reset(
     vote_box.no_count = Uint128::zero();
     vote_box.abstain_count = Uint128::zero();
     vote_box.no_with_veto_count = Uint128::zero();
+    vote_box.voter_count = Uint128::zero();
+    vote_box.voters = vec![];
 
     VOTE_BOX_LIST.save(deps.storage, id.u64(), &vote_box);
     Ok(Response::new()
