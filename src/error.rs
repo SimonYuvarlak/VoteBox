@@ -27,8 +27,11 @@ pub enum ContractError {
     #[error("Send native tokens")]
     NotSupportDenom {},
 
-    #[error("You hava already committed a vote")]
+    #[error("You have already committed a vote")]
     VoterRepeat {},
+
+    #[error("A VoteBox with the same topic already exists")]
+    DuplicateVoteBox {},
 
     #[error("{0}")]
     Overflow(#[from] OverflowError),

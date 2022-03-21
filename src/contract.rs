@@ -118,6 +118,16 @@ pub fn create_vote_box(
 ) -> Result<Response, ContractError> {
     let owner = deps.api.addr_validate(&owner)?;
 
+    let voteboxes: StdResult<Vec<_>> = VOTE_BOX_LIST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    let votebox_found = voteboxes?.into_iter().map(|list| list.1).find(|item|item.topic.to_lowercase() == topic.to_lowercase());
+    if votebox_found.is_some() {
+        return Err(ContractError::DuplicateVoteBox {});
+    }
+
+
     let id = VOTE_BOX_SEQ.update::<_, StdError>(deps.storage, |id| Ok(id.add(Uint64::new(1))))?;
 
     let new_vote_box = Vote {
